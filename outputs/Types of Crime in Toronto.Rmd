@@ -1,0 +1,164 @@
+---
+title: "The Pandemic's Effect on Toronto Crime Statistics in 2020"
+author: "Julia Wong"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  bookdown::pdf_document2:
+    fig_caption: yes
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+abstract: "Using data about victims of crime from Open Data Toronto, we explore the numbers of crime reported each year by category. Crime rates have steadily increased between 2014 and 2019 but suddenly dropped drastically in 2020. The COVID-19 pandemic and nationwide restrictions have impacted communities around the world in many ways, including the decrease in crime rates due to more people staying at home to curb the spread of the virus. However, a further understanding of the crime numbers leads to the discovery of other underlying reasons alongside the pandemic behind the sudden decrease of crime in 2020."
+thanks: 'Code and data are available at: https://github.com/jiawei-wong/Types-of-Crime-in-Toronto.git.'
+toc: FALSE
+bibliography: references.bib 
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos = "!H", echo = FALSE, warning = FALSE, message = FALSE)
+
+library(opendatatoronto)
+library(knitr)
+library(tidyverse)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(kableExtra)
+library(bibtex)
+library(bookdown)
+```
+
+```{r, include=FALSE}
+raw_data <- read_csv(here::here("inputs/data/raw_data.csv"))
+
+#### Grabbing specific columns ####
+cleaned_victims_of_crime <- raw_data |>
+  as_tibble() |>
+  select(ReportedYear, Subtype, AssaultSubtype, Sex, Count_)
+```
+
+# Introduction
+
+The COVID-19 pandemic that has been ongoing since the early months of 2020 is one of the most significant global disease outbreaks in recent history. The virus’ unforeseen emergence alongside its spread at an alarming rate caused scientists rushing to find treatments and governments across the world implementing nationwide restrictions to curb the spread. By the end of March 2020, the majority of countries worldwide, including Canada, had established movement restrictions or either a partial or full lockdown [@bbcnews]. Of course, there were restriction exceptions among essential workers such as those who work in the fields of medicine, food industry, transportation and public safety.
+
+Undoubtedly, the pandemic has impacted the world in both positive and negative ways. The change in crime rates is one of the many effects which has been reported to be noticed in communities around the world [@sticklefelson]. Canadian police services have reported that the overall number of criminal incidents has fallen significantly between March and October 2020 which are the peak months of the pandemic [@ctvnews]. However, this decrease does not take into account the type of crime reported which leaves room for ambiguity. With the Canadian government entitling police authorities the legal power and right to stop individuals on the street or in vehicles during the lockdown [@cp24news], issues surrounding ethicality and police biases begin to arise, affecting the accuracy of crime statistics in 2020. Additionally, crime such as sexual violence is prone to be underreported which also affects the statistical numbers. Analyzing the number of crimes by its individual type could help indicate the pandemic’s true effect on crime rates.
+
+In this paper, we will first look at the overall crime statistics between the years of 2014 to 2020 by using crime rate data from The City of Toronto’s Open Data portal. We will then look at the numbers of crime reported by category and identify the attributes of each category. Finally, we will develop an understanding behind the contrasting numbers of crime reported in each category while discussing the pandemic’s potential effect on the outcome of the crime rates. 
+
+# Data
+
+This analysis utilizes the `R` [@citeR] programming language for statistical computing and graphics. The `tidyverse` [@tidyverse] package is downloaded for access to other essential R packages. The packages `dplyr` [@dplyr] and `reshape2` [@reshape2] allowed us to manipulate the data. Graphs are created using `ggplot2` [@ggplot2] and tables are created using `kableExtra` [@kableExtra] to visually demonstrate the key findings. The `knitr` [@knitr], `bibtex` [@bibtex] and `bookdown` [@bookdown] packages are used to create the R markdown report and reference literature used.
+
+The crime data used is a part of the Annual Statistical Report (ASR) published by the Toronto Police Services (TPS). It provides an overview of police related statistics which includes reported crimes, victims of crime, search of persons, firearms, traffic collisions, complaints, communications and other administrative information [@ASR]. This analysis focuses on statistics related to the victims of crime which was last refreshed on August 12th, 2021. Reports are submitted online through the Citizen Online Report Entry (CORE) for non-emergencies or through calling the Toronto Police for emergencies that require immediate assistance. Alternatively, reports through calling emergency services (911) are also recorded [@CORE]. 
+
+We downloaded the Police Annual Statistical Report - Victims of crime dataset from the Open Data Toronto portal using the R package `opendatatoronto` [@opendatatoronto]. The raw data includes 854 observations and 12 variables: ID, index, reported year, category, subtype, assault subtype, sex, age group, age cohort, count, object ID and geometry. Variables that did not provide useful information to our analysis were excluded in this analysis. The only value under ‘category’ was ‘crime against the person’ which was redundant and thus excluded. Lastly, we decided to exclude age group and age cohort as they were presented as a range and would not be overly useful for this analysis. The cleaned dataset now includes reported year, subtype, assault subtype, sex and count (number of reports).
+
+```{r totalcountsfig, fig.cap="Total Number of Crime Reports from 2014 to 2020", echo=FALSE, warning=FALSE, message=FALSE, fig.width=8}
+
+total_reported_crime <- cleaned_victims_of_crime |>
+  select(ReportedYear, Count_) |>
+  group_by(ReportedYear) |>
+  summarise_all(sum) |>
+  pivot_wider(names_from = ReportedYear, values_from = Count_)
+
+total_reported_crime |>
+  knitr::kable(caption = "Total Number of Crime Reported (2014 - 2020)",
+               align = c('l', 'l', 'l', 'l', 'l', 'l', 'l'),
+               booktabs = T) |>
+  kable_classic(full_width = T) |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+To first gain a basic understanding of the numbers of crime reported over the years of 2014 to 2020, we created a table (Table \@ref(tab:totalcountsfig)) with a summary of the numbers of crime reported in each year regardless of the type of the crime. It can be seen that the number of crimes reported has been steadily increasing throughout the years of 2014 to 2019 but drastically dropped between 2019 and 2020. This sudden drop in numbers of crime could potentially correspond with the drop in the population’s mobility due to the pandemic’s restrictions [@fivethirtyeight]. Lockdown restrictions led to more people staying at home and less people out publicly, reducing the opportunities for crime to take place. Additionally, we are also concerned with the fact that certain types of crime are prone to be underreported or miscategorized especially with the self-reporting nature of this dataset, leading to an inaccuracy of the numbers shown. Toronto Police Services (TPS) also did not indicate whether the reported crimes in this dataset include those that were reported by the police themselves. If so, there is a possibility for bias in who the police chooses to interact with when on duty [@econofact] which must be taken account for when analyzing this data.
+
+```{r typecountsfig, fig.cap="Reported Number of Crime by Category and Year", echo=FALSE, warning=FALSE, message=FALSE, fig.width=8}
+
+victims_of_crime_by_type <- cleaned_victims_of_crime |>
+  select(ReportedYear, Subtype, Count_) |>
+  arrange(ReportedYear) |>
+  group_by(ReportedYear, Subtype) |>
+  summarise_all(sum) |>
+  mutate(ReportedYear = as.numeric(ReportedYear))
+
+ggplot(victims_of_crime_by_type, aes(ReportedYear, Count_, fill = Subtype), las=2) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=Count_), size = 3, position = position_stack(vjust = 0.5)) +
+  theme_light() +
+  labs(x = "Year", y = "Number of Reports", fill = "Type of Crime", title = "Reported Types of Crime in Toronto (2014 - 2020)") +
+  scale_x_continuous(breaks = victims_of_crime_by_type$ReportedYear) +
+  theme_light()
+```
+
+To better understand the numbers of crime reported, we categorized the types of crime into assault, other, robbery and sexual violation. The numbers of crime reported by category each year are displayed in Figure 1. Immediately, we can see that throughout all of the years, assault is the most common type of crime reported, followed by other, robbery and sexual violation. Between 2014 to 2019, the numbers of crime reported under assault and sexual violation have only been increasing whereas the numbers of crime reported under other and robbery have been facing slight fluctuations but remained fairly consistent. The numbers of all types of crime have dropped in 2020 but some types of crime dropped more than others: assault (-12.9%), other (-17.1%), robbery (-27.2%) and sexual violation (-18.69%). Numbers of reported robbery and other related crime hit their lowest number record across all seven years in the dataset.
+
+An analysis of the subcategories of the types of crime would be helpful to further explore the pandemic’s effect on the numbers. However, with the lack of information provided regarding which crime falls under the category ‘other’, this category cannot be further analyzed. Robbery reports experienced the largest decrease in 2020 which in turn is the main contributor to the overall decline. As more people are staying at home due to country restrictions, there is an increase in guardianship of personal belongings and a decrease in opportunities for robbery [@statscan]. Similarly, with less people out in the city, there are less chances for people to be mugged on the streets. This dataset does not indicate the different types of robbery that fall under this category which could be useful for this analysis. The only category with provided subcategories is assault, which is displayed in Table 2.
+
+```{r assaultsubcategoriesfig, fig.cap="Subcategories that Fall Under Assault", echo=FALSE, warning=FALSE, message=FALSE, fig.width=8}
+assault_subcategories <- cleaned_victims_of_crime |>
+  select(ReportedYear, Subtype, AssaultSubtype, Count_) |>
+  filter(Subtype == "Assault") |>
+  melt(id = c("ReportedYear", "AssaultSubtype",
+              variable.name = "Subtype",
+              value.name = "Count_")) |>
+  group_by(ReportedYear, AssaultSubtype) |>
+  summarise(Count_ = sum(Count_)) |>
+  pivot_wider(names_from = ReportedYear, values_from = Count_)
+
+assault_subcategories_total <-
+  rbind(assault_subcategories, c("Total", colSums(assault_subcategories[,2:8])))
+
+knitr::kable(assault_subcategories_total, caption = "Number of Assault Victims by Subcategory (2014 - 2020)", 
+      col.names = c("Subcategory", "2014", "2015", "2016", "2017", "2018", "2019", "2020"),
+      booktabs = TRUE) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) |>
+  row_spec(dim(assault_subcategories_total)[1], bold = T) |>
+  kable_classic() |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+Assault is defined by the Toronto Police Service (TPS) as the direct or indirect application of force to another person, or the attempt or threat to apply force to another person, without that person’s consent [@tps]. Crimes reported under assault are broken up into five different subcategories: aggravated peace officer, assault peace officer, assault peace officer weapon/bodily harm, assault resist arrest and other. Four of the five subcategories are assault towards police officers which indicates the likelihood of the reports to be reported by police officers themselves. 
+
+The nature of the pandemic has caused an outbreak of hate and violence directed against Asians around the world due to the belief that they are the cause of the virus [@npr]. There has been an increase of crimes targeting the Black, East/Southeast, Indigenous and South Asian populations in Canada [@statscan]. Police officers are not exempted from the possibility of becoming increasingly racist during the pandemic. In fact, police powers can be easily utilized in racist and unethical ways. As mentioned before, police officers are given the power to stop whoever they choose to on the streets or vehicles to be questioned during lockdowns. They are given the complete power and choice to target people who they think seem unlawful. This could lead to the person under false arrest to carry out self-defense or resist arrest, contributing to the numbers of crime reported under assault peace officer and assault resist arrest. Systemic racism within the police services has resulted in the overrepresentation of minorities in crime numbers [@houseofcommons]. However, it should be noted that the majority of crimes reported under assault fall under the other category, which are likely to be reported by regular citizens who faced assault attacks.
+
+```{r gendercountsfig, fig.cap="Reported Number of Sexual Violation by Gender from 2014 to 2020", echo=FALSE, warning=FALSE, message=FALSE, fig.width=8}
+
+victims_of_crime_by_gender <- cleaned_victims_of_crime |>
+  select(ReportedYear, Subtype, Sex, Count_) |>
+  filter(Subtype == "Sexual Violation") |>
+  arrange(ReportedYear) |>
+  subset(Sex!="U") |>
+  mutate(Sex = recode(Sex, 'F' = "Female",
+                      'M' = 'Male')) |>
+  group_by(ReportedYear, Subtype, Sex) |>
+  summarise_all(sum)
+
+victims_of_crime_by_gender |>
+  group_by(ReportedYear) |>
+  ggplot(aes(x = ReportedYear, y = Count_, color = Sex)) +
+  geom_line(aes(group = Sex), lwd = 1.5) +
+  scale_x_continuous(breaks = victims_of_crime_by_gender$ReportedYear) +
+  labs(color = "Gender of Victim",
+       x = "Year",
+       y = "Number of Reports",
+       title = "Victims of Sexual Violation by Gender (2014 - 2020)") +
+  theme_light()
+
+```
+
+Sexual violation is known to be a gendered crime [@justice] with females being the majority of sexual violation victims (Figure \@ref(fig:gendercountsfig)). However, male victims are less likely to file a sexual violation report which creates this statistical bias. According to a sexual assault research by the Department of Justice in Canada, 70% of the male sample did not report adult sexual abuse compared to 59% of the female sample [@justice]. There could be multiple reasons for this including feeling embarrassed and thinking that no one would believe them if they were to file reports.
+
+With the pandemic and country restrictions in place, sexual violation crime dropped 18.69% between 2019 and 2020. Although the drop between the two years is fairly drastic, the numbers reported in 2020 are still higher than the numbers reported in years before 2017 (Figure \@ref(fig:typecountsfig)). According to Sexual Assault Statistics in Canada, 80% of sexual assault incidents occur at home and are often commited by someone close to the victim rather than a stranger [@sexassault]. Stay-at-home orders led to more opportunities for sexual violation crimes to take place. In addition to that, the fairly consistent numbers reported throughout the years could be due to the fact that sexual violation crimes are prone to be underreported. Only 6 of every 100 incidents of sexual assault are reported as victims are often ashamed or embarrassed, had a lack of family support or mistrust the police department [@sexassault]. The modern day culture has also led victims to believe that their experience is unimportant and that they may face blame when they do go to police services for assistance [@datafeminism].
+
+# Conclusion
+
+Certainly, the COVID-19 pandemic played a significant part in the reduction of crimes reported in 2020. Nationwide lockdowns and restrictions to contain the spread of the virus resulted in the increase of people staying at home and the decrease of opportunities for crime to take place in the public. However, the context behind the numbers of reports could have changed due to the increase of power given to police authorities in conjunction with the increase of racism among communities. It is also important to take into account the types of crime that make up the overall crime statistics as some crimes hold a bigger impact than others. For instance, crimes such as sexual violation have little impact because of its tendency to be underreported by victims. It is important to truly understand crime statistics for reasons such as predicting future crimes and improving the relationships between police services and the community.
+
+\newpage
+# References
+
+
+
